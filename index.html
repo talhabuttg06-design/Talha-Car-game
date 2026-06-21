@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Talha Car Game</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<meta name="theme-color" content="#2266ff">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>
+  * { touch-action: none; box-sizing:border-box; }
+  html, body { margin:0; padding:0; width:100%; height:100%; overflow:hidden; }
+  body { background:#222; display:flex; flex-direction:column; align-items:center; font-family:sans-serif; color:#eee; padding:8px; }
+  canvas { background:#444; border:3px solid #888; margin-top:6px; touch-action:none; }
+  h1 { color:#4af; margin:2px 0 0 0; font-size:5vw; max-font-size:22px; }
+  h3 { color:#aaa; margin:2px 0; font-size:3vw; max-font-size:14px; }
+  #score { font-size:4vw; max-font-size:18px; margin:4px 0; }
+  #msg { font-size:3vw; max-font-size:14px; color:#f55; margin:4px 0; text-align:center; }
+  #controls { display:flex; gap:20px; margin-top:10px; }
+  .btn { width:18vw; height:18vw; max-width:80px; max-height:80px; background:#2af; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:6vw; color:#fff; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+  .btn:active { background:#18a; }
+  #restartBtn { margin-top:10px; padding:10px 26px; background:#e22; color:#fff; border:none; border-radius:10px; font-size:16px; font-weight:bold; box-shadow:0 3px 6px rgba(0,0,0,0.4); }
+</style>
+</head>
+<body>
+<h1>🏎️ Car Racer</h1>
+<h3>Made by Talha Butt</h3>
+<div id="score">Score: 0</div>
+<canvas id="game" width="400" height="500"></canvas>
+<div id="msg">Use arrows or buttons below to dodge.</div>
+<div id="controls">
+  <div class="btn" id="leftBtn">◀</div>
+  <div class="btn" id="rightBtn">▶</div>
+</div>
+<button id="restartBtn">🔄 Restart</button>
+<script>
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const roadW = 400, roadH = 500, laneW = 100;
+let carX, score, alive, loop, obstacles, speed, roadOffset;
+
+function resizeCanvas() {
+  const maxH = window.innerHeight * 0.6;
+  const maxW = window.innerWidth * 0.95;
+  let scale = Math.min(maxH / roadH, maxW / roadW);
+  canvas.style.width = (roadW * scale) + 'px';
+  canvas.style.height = (roadH * scale) + 'px';
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', resizeCanvas);
+resizeCanvas();
+
+function init() {
+  carX = 150;
+  score = 0;
+  alive = true;
+  obstacles = [];
+  speed = 4;
+  roadOffset = 0;
+  document.getElementById('score').textContent = 'Score: 0';
+  document.getElementById('msg').textContent = 'Use LEFT/RIGHT arrows to dodge. Press R to restart.';
+  if (loop) clearInterval(loop);
+  loop = setInterval(update, 30);
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'r' || e.key === 'R') { init(); return; }
+  if (e.key === 'ArrowLeft') carX -= 20;
+  if (e.key === 'ArrowRight') carX += 20;
+  carX = Math.max(20, Math.min(330, carX));
+});
+
+function moveLeft() { carX = Math.max(20, carX - 20); }
+function moveRight() { carX = Math.min(330, carX + 20); }
+
+const leftBtn = document.getElementById('leftBtn');
+const rightBtn = document.getElementById('rightBtn');
+const restartBtn = document.getElementById('restartBtn');
+
+leftBtn.addEventListener('pointerdown', e => { e.preventDefault(); moveLeft(); });
+rightBtn.addEventListener('pointerdown', e => { e.preventDefault(); moveRight(); });
+restartBtn.addEventListener('pointerdown', e => { e.preventDefault(); init(); });
+
+function spawnObstacle() {
+  let lanes = [60, 160, 260];
+  let x = lanes[Math.floor(Math.random()*3)];
+  obstacles.push({x:x, y:-40});
+}
+
+let frame = 0;
+function update() {
+  if (!alive) return;
+  frame++;
+  if (frame % 40 === 0) spawnObstacle();
+
+  roadOffset = (roadOffset + speed) % 40;
+  score += 1;
+  if (score % 200 === 0) speed += 0.5;
+
+  obstacles.forEach(o => o.y += speed);
+  obstacles = obstacles.filter(o => o.y < roadH + 40);
+
+  // collision check
+  obstacles.forEach(o => {
+    if (Math.abs(o.x - carX) < 35 && o.y > 380 && o.y < 460) {
+      alive = false;
+      document.getElementById('msg').textContent = 'Crashed! Press R to restart.';
+      clearInterval(loop);
+    }
+  });
+
+  document.getElementById('score').textContent = 'Score: ' + score;
+  draw();
+}
+
+function draw() {
+  ctx.fillStyle = '#393';
+  ctx.fillRect(0,0,roadW,roadH);
+
+  ctx.fillStyle = '#555';
+  ctx.fillRect(20,0,360,roadH);
+
+  ctx.strokeStyle = '#fff';
+  ctx.setLineDash([20,20]);
+  ctx.lineWidth = 4;
+  for (let lane of [140, 260]) {
+    ctx.beginPath();
+    ctx.moveTo(lane, roadOffset - 40);
+    ctx.lineTo(lane, roadH);
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+
+  // obstacles (other cars)
+  ctx.fillStyle = '#e22';
+  obstacles.forEach(o => {
+    ctx.fillRect(o.x-20, o.y, 40, 60);
+  });
+
+  // player car (stylized sports car)
+  ctx.save();
+  ctx.translate(carX, 430);
+  // body
+  ctx.fillStyle = '#1a1a2e';
+  ctx.beginPath();
+  ctx.moveTo(-18, 30);
+  ctx.lineTo(-22, 0);
+  ctx.lineTo(-14, -25);
+  ctx.lineTo(14, -25);
+  ctx.lineTo(22, 0);
+  ctx.lineTo(18, 30);
+  ctx.closePath();
+  ctx.fill();
+  // windshield
+  ctx.fillStyle = '#8ecdf2';
+  ctx.beginPath();
+  ctx.moveTo(-10, -22);
+  ctx.lineTo(10, -22);
+  ctx.lineTo(8, -8);
+  ctx.lineTo(-8, -8);
+  ctx.closePath();
+  ctx.fill();
+  // headlights
+  ctx.fillStyle = '#fff7b0';
+  ctx.fillRect(-16, 22, 6, 6);
+  ctx.fillRect(10, 22, 6, 6);
+  // wheels
+  ctx.fillStyle = '#111';
+  ctx.fillRect(-24, -10, 6, 14);
+  ctx.fillRect(18, -10, 6, 14);
+  ctx.fillRect(-24, 10, 6, 14);
+  ctx.fillRect(18, 10, 6, 14);
+  ctx.restore();
+}
+
+init();
+
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+</script>
+</body>
+</html>
